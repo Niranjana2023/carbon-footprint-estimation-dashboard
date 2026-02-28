@@ -1,15 +1,15 @@
 /*
- * Carbon Footprint Dashboard - ESP32 Controller
+ * Carbon Footprint Dashboard - ESP32 Controller (4 devices)
  *
  * Connects to WiFi, reads ADC pins (current sensors), sends data to /process-data
- * every 200ms, and sets relay outputs from API control_states (D0-D8).
+ * every 200ms, and sets relay outputs from API control_states (D0-D3).
  *
  * Arduino IDE: Install "ESP32 by Espressif Systems" board support.
  * Libraries: ArduinoJson (install via Sketch -> Include Library -> Manage Libraries)
  *
  * Wiring (edit ADC_PINS and RELAY_PINS below to match your board):
- *   ADC:  A0-A8 -> GPIO 36, 39, 34, 35, 32, 33, 25, 26, 27
- *   Relay: D0-D8 -> GPIO 2, 4, 5, 18, 19, 21, 22, 23, 13
+ *   ADC:   A0-A3 -> GPIO 36, 39, 34, 35
+ *   Relay: D0-D3 -> GPIO 2, 4, 5, 18
  */
 
 #include <WiFi.h>
@@ -26,15 +26,15 @@
 #define PROCESS_DATA_PATH "/process-data"
 #define REQUEST_INTERVAL_MS 200
 
-// ----- ADC pins (logical A0-A8 -> GPIO). ESP32: 36, 39, 34, 35, 32, 33, 25, 26, 27 -----
-const int ADC_PINS[] = { 36, 39, 34, 35, 32, 33, 25, 26, 27 };
-const char* ADC_KEYS[] = { "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8" };
-#define NUM_ADC 9
+// ----- ADC pins (4 devices: A0-A3 -> GPIO). ESP32: 36, 39, 34, 35 -----
+const int ADC_PINS[] = { 36, 39, 34, 35 };
+const char* ADC_KEYS[] = { "A0", "A1", "A2", "A3" };
+#define NUM_ADC 4
 
-// ----- Relay output pins (D0-D8 -> GPIO). Edit to match your relay board -----
-const int RELAY_PINS[] = { 2, 4, 5, 18, 19, 21, 22, 23, 13 };
-const char* RELAY_KEYS[] = { "D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8" };
-#define NUM_RELAYS 9
+// ----- Relay output pins (4 devices: D0-D3 -> GPIO). Edit to match your relay board -----
+const int RELAY_PINS[] = { 2, 4, 5, 18 };
+const char* RELAY_KEYS[] = { "D0", "D1", "D2", "D3" };
+#define NUM_RELAYS 4
 
 // ----- ADC config (match app.py) -----
 #define ADC_ATTEN     ADC_11db

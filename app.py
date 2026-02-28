@@ -45,41 +45,42 @@ APPLIANCES = {
         'output_pin': 'D3',
         'color': '#4ECDC4'
     },
-    'microwave': {
-        'name': 'Microwave',
-        'icon': '🍞',
-        'adc_pin': 'A4',
-        'output_pin': 'D4',
-        'color': '#95E1D3'
-    },
-    'air_conditioner': {
-        'name': 'Air Conditioner',
-        'icon': '❄️',
-        'adc_pin': 'A5',
-        'output_pin': 'D5',
-        'color': '#7FE5E0'
-    },
-    'dishwasher': {
-        'name': 'Dishwasher',
-        'icon': '🍽️',
-        'adc_pin': 'A6',
-        'output_pin': 'D6',
-        'color': '#FFB6C1'
-    },
-    'water_heater': {
-        'name': 'Water Heater',
-        'icon': '🚿',
-        'adc_pin': 'A7',
-        'output_pin': 'D7',
-        'color': '#FF8C69'
-    },
-    'desktop_pc': {
-        'name': 'Desktop PC',
-        'icon': '🖥️',
-        'adc_pin': 'A8',
-        'output_pin': 'D8',
-        'color': '#4A90E2'
-    }
+    # --- 4 devices only; below commented out ---
+    # 'microwave': {
+    #     'name': 'Microwave',
+    #     'icon': '🍞',
+    #     'adc_pin': 'A4',
+    #     'output_pin': 'D4',
+    #     'color': '#95E1D3'
+    # },
+    # 'air_conditioner': {
+    #     'name': 'Air Conditioner',
+    #     'icon': '❄️',
+    #     'adc_pin': 'A5',
+    #     'output_pin': 'D5',
+    #     'color': '#7FE5E0'
+    # },
+    # 'dishwasher': {
+    #     'name': 'Dishwasher',
+    #     'icon': '🍽️',
+    #     'adc_pin': 'A6',
+    #     'output_pin': 'D6',
+    #     'color': '#FFB6C1'
+    # },
+    # 'water_heater': {
+    #     'name': 'Water Heater',
+    #     'icon': '🚿',
+    #     'adc_pin': 'A7',
+    #     'output_pin': 'D7',
+    #     'color': '#FF8C69'
+    # },
+    # 'desktop_pc': {
+    #     'name': 'Desktop PC',
+    #     'icon': '🖥️',
+    #     'adc_pin': 'A8',
+    #     'output_pin': 'D8',
+    #     'color': '#4A90E2'
+    # }
 }
 
 # In-memory storage for real-time data and state
