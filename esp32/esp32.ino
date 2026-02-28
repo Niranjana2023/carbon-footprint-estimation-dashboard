@@ -50,11 +50,11 @@ void setup() {
   delay(500);
   Serial.println("\n[Carbon Footprint] ESP32 controller starting");
 
-  // Configure ADC
+  // Configure ADC pins as inputs
   analogReadResolution(12);
   analogSetAttenuation(ADC_ATTEN);
   for (int i = 0; i < NUM_ADC; i++) {
-    adcAttachPin(ADC_PINS[i]);
+    pinMode(ADC_PINS[i], INPUT);
   }
 
   // Configure relay outputs
