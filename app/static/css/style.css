@@ -109,10 +109,10 @@ header a:hover {
     gap: 1rem;
 }
 
-/* Dashboard Grid */
+/* Dashboard Grid – 4 devices in one row */
 .appliance-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 1rem;
 }
 
@@ -121,13 +121,15 @@ header a:hover {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    min-width: 0;
 }
 
 /* Appliance Card */
 .appliance-card {
     background: var(--bg-white);
     border-radius: 12px;
-    padding: 1rem;
+    padding: 1.25rem;
+    min-height: 160px;
     cursor: pointer;
     transition: all 0.3s ease;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -157,7 +159,7 @@ header a:hover {
 }
 
 .appliance-icon {
-    font-size: 2.5rem;
+    font-size: 2.75rem;
 }
 
 .appliance-name {
