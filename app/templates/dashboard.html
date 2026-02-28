@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carbon Footprint Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='90'>♻️</text></svg>" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>
+            <span>♻️</span>
+            Carbon Footprint Dashboard
+        </h1>
+    </header>
+
+    <div class="dashboard-container">
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="container">
+                <div class="appliance-grid">
+                    {% for appliance_id, appliance in appliances.items() %}
+                    <div class="appliance-card-wrapper">
+                        <a href="{{ url_for('appliance_detail', appliance_id=appliance_id) }}" class="appliance-card" id="card-{{ appliance_id }}" onclick="handleCardClick(event, '{{ appliance_id }}')">
+                            <div class="appliance-icon">{{ appliance.icon }}</div>
+                            <h3 class="appliance-name">{{ appliance.name }}</h3>
+                            <p class="appliance-status" id="status-{{ appliance_id }}">Click to view details</p>
+                            <button class="btn-toggle-circular" onclick="toggleAppliance('{{ appliance_id }}', event)" data-appliance-id="{{ appliance_id }}" title="Toggle appliance" id="btn-{{ appliance_id }}">
+                                <span class="toggle-icon" id="toggle-{{ appliance_id }}">⏻</span>
+                            </button>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Panel -->
+        <aside class="sidebar-panel">
+            <div class="sidebar-content">
+                <h2>📊 Summary</h2>
+                <div class="sidebar-metrics">
+                    <div class="metric-card">
+                        <div class="metric-label">Total Carbon Footprint</div>
+                        <div class="metric-value" id="totalCarbonFootprint">-</div>
+                        <span class="metric-unit">kg CO₂</span>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-label">Total Energy</div>
+                        <div class="metric-value" id="totalEnergy">-</div>
+                        <span class="metric-unit">kWh</span>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-label">Total Carbon Emissions</div>
+                        <div class="metric-value" id="totalCarbon">-</div>
+                        <span class="metric-unit">kg CO₂</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // Toggle appliance on/off
+        async function toggleAppliance(applianceId, event) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            try {
+                const response = await fetch(`/api/appliance/${applianceId}/toggle`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                updateToggleDisplay(applianceId, data.is_on);
+            } catch (error) {
+                console.error('Error toggling appliance:', error);
+                alert('Failed to toggle appliance');
+            }
+        }
+        
+        // Prevent navigation to detail page if device is disabled
+        function handleCardClick(event, applianceId) {
+            const card = document.getElementById(`card-${applianceId}`);
+            if (card.classList.contains('disabled')) {
+                event.preventDefault();
+            }
+        }
+        
+        // Fetch and display aggregates
+        async function loadAggregates() {
+            try {
+                const response = await fetch('/api/aggregates');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                
+                document.getElementById('totalCarbonFootprint').textContent = data.total_carbon_footprint.toFixed(4);
+                document.getElementById('totalEnergy').textContent = data.total_energy.toFixed(4);
+                document.getElementById('totalCarbon').textContent = data.total_carbon.toFixed(4);
+            } catch (error) {
+                console.error('Error loading aggregates:', error);
+            }
+        }
+        
+        // Update toggle button display
+        function updateToggleDisplay(applianceId, isOn) {
+            const button = document.querySelector(`button[data-appliance-id="${applianceId}"]`);
+            const icon = document.getElementById(`toggle-${applianceId}`);
+            
+            if (isOn) {
+                button.classList.add('active');
+            } else {
+                button.classList.remove('active');
+            }
+        }
+        
+        // Update device configuration status
+        function updateDeviceStatus(applianceId, isConfigured) {
+            const card = document.getElementById(`card-${applianceId}`);
+            const button = document.getElementById(`btn-${applianceId}`);
+            const status = document.getElementById(`status-${applianceId}`);
+            
+            if (isConfigured) {
+                card.classList.remove('disabled');
+                button.classList.remove('disabled');
+                button.disabled = false;
+                button.style.pointerEvents = 'auto';
+                status.textContent = 'Click to view details';
+            } else {
+                card.classList.add('disabled');
+                button.classList.add('disabled');
+                button.disabled = true;
+                button.style.pointerEvents = 'none';
+                status.textContent = 'Device is offline';
+            }
+        }
+        
+        // Load current states on page load
+        async function loadStates() {
+            try {
+                const response = await fetch('/api/appliances/states');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                
+                // Update toggle states
+                Object.entries(data.states).forEach(([pin, isOn]) => {
+                    // Find appliance ID by output pin
+                    for (const [appId, applData] of Object.entries(window.appliancePins || {})) {
+                        if (applData === pin) {
+                            updateToggleDisplay(appId, isOn);
+                            break;
+                        }
+                    }
+                });
+                
+                // Update configuration status
+                Object.entries(data.configured).forEach(([appId, isConfigured]) => {
+                    updateDeviceStatus(appId, isConfigured);
+                });
+            } catch (error) {
+                console.error('Error loading states:', error);
+            }
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStates();
+            loadAggregates();
+            
+            // Poll for state updates every 2 seconds
+            setInterval(loadStates, 2000);
+            setInterval(loadAggregates, 2000);
+        });
+    </script>
+</body>
+</html>
