@@ -98,7 +98,8 @@ appliance_data = {
 @app.route('/')
 def dashboard():
     """Display the main dashboard with all appliances."""
-    return render_template('dashboard.html', appliances=APPLIANCES)
+    pin_to_appliance = {appliance_info['output_pin']: aid for aid, appliance_info in APPLIANCES.items()}
+    return render_template('dashboard.html', appliances=APPLIANCES, pin_to_appliance=pin_to_appliance)
 
 
 @app.route('/appliance/<appliance_id>')
@@ -116,18 +117,30 @@ def appliance_detail(appliance_id):
 @app.route('/process-data', methods=['POST'])
 def process_data():
     """
-    Process ADC data from ESP32 microcontroller.
+    Process ADC data and optional digital pin states from ESP32 microcontroller.
     Expected JSON format:
     {
         "A0": 2048,  # ADC reading for pin A0
         "A1": 1024,
         ...
+        "D0": 1, "D1": 0, ...  # optional: current relay/digital output states (0/1)
     }
+    If D0-D8 are present, backend control state (is_on) is updated to match the controller.
     """
     try:
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
+        
+        # Sync backend control state from controller-reported digital pin states
+        for appliance_id, appliance_info in APPLIANCES.items():
+            output_pin = appliance_info['output_pin']
+            if output_pin in data:
+                val = data[output_pin]
+                if isinstance(val, bool):
+                    appliance_data[appliance_id]['is_on'] = val
+                else:
+                    appliance_data[appliance_id]['is_on'] = (int(val) != 0)
         
         result = {}
         

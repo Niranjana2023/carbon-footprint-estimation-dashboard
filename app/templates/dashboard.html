@@ -144,7 +144,10 @@
             }
         }
         
-        // Load current states on page load
+        // Pin-to-appliance mapping (from server) for syncing toggle states
+        window.applianceByPin = {{ pin_to_appliance | tojson }};
+
+        // Load current states on page load and poll for updates (keeps toggles in sync with controller)
         async function loadStates() {
             try {
                 const response = await fetch('/api/appliances/states');
@@ -153,14 +156,11 @@
                 }
                 const data = await response.json();
                 
-                // Update toggle states
+                // Update toggle states using pin -> appliance mapping
                 Object.entries(data.states).forEach(([pin, isOn]) => {
-                    // Find appliance ID by output pin
-                    for (const [appId, applData] of Object.entries(window.appliancePins || {})) {
-                        if (applData === pin) {
-                            updateToggleDisplay(appId, isOn);
-                            break;
-                        }
+                    const applianceId = window.applianceByPin[pin];
+                    if (applianceId) {
+                        updateToggleDisplay(applianceId, isOn);
                     }
                 });
                 
