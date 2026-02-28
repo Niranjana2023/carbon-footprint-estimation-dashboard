@@ -57,10 +57,10 @@ void setup() {
     pinMode(ADC_PINS[i], INPUT);
   }
 
-  // Configure relay outputs
+  // Configure relay outputs (NO: HIGH = off at startup)
   for (int i = 0; i < NUM_RELAYS; i++) {
     pinMode(RELAY_PINS[i], OUTPUT);
-    digitalWrite(RELAY_PINS[i], LOW);
+    digitalWrite(RELAY_PINS[i], HIGH);
   }
 
   connectWiFi();
@@ -122,8 +122,9 @@ void sendProcessDataAndUpdateRelays() {
     int avg = (int)(sum / ADC_SAMPLES);
     doc[ADC_KEYS[i]] = avg;
   }
+  // Report state for NO relay: LOW = on (1), HIGH = off (0)
   for (int i = 0; i < NUM_RELAYS; i++) {
-    doc[RELAY_KEYS[i]] = digitalRead(RELAY_PINS[i]) == HIGH ? 1 : 0;
+    doc[RELAY_KEYS[i]] = digitalRead(RELAY_PINS[i]) == LOW ? 1 : 0;
   }
 
   String body;
@@ -166,8 +167,9 @@ void sendProcessDataAndUpdateRelays() {
     return;
   }
 
+  // NO relay: LOW = on (close contact), HIGH = off (open)
   for (int i = 0; i < NUM_RELAYS; i++) {
     bool on = control[RELAY_KEYS[i]] | false;
-    digitalWrite(RELAY_PINS[i], on ? HIGH : LOW);
+    digitalWrite(RELAY_PINS[i], on ? LOW : HIGH);
   }
 }
