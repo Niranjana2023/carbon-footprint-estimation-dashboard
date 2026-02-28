@@ -18,7 +18,7 @@
 #include <WiFiClientSecure.h>
 
 // ----- WiFi (edit to match your network) -----
-#define WIFI_SSID     "TECHNO"
+#define WIFI_SSID     "TECNO"
 #define WIFI_PASSWORD "anju@2005"
 
 // ----- API -----
