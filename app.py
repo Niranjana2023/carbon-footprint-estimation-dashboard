@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 
 app = Flask(__name__, template_folder='app/templates', static_folder='app/static')
@@ -82,14 +82,16 @@ APPLIANCES = {
 }
 
 # In-memory storage for real-time data and state
+# sync_skip_until: after a dashboard toggle, we don't overwrite is_on from controller until this time (so all clients see the same relay state)
 appliance_data = {
     appliance_id: {
         'readings': [],
         'total_energy': 0,  # in kWh
         'total_carbon': 0,  # in kg CO2
-        'is_on': False,  # Control state
+        'is_on': False,  # Control state (synced from controller so all users see same state)
         'last_timestamp': None,  # Track last reading time
-        'is_configured': False  # Device configured status
+        'is_configured': False,  # Device configured status
+        'sync_skip_until': None  # Don't overwrite is_on from controller before this datetime
     }
     for appliance_id in APPLIANCES
 }
@@ -123,24 +125,29 @@ def process_data():
         "A0": 2048,  # ADC reading for pin A0
         "A1": 1024,
         ...
-        "D0": 1, "D1": 0, ...  # optional: current relay/digital output states (0/1)
+        "D0": 1, "D1": 0, ...  # optional: current relay states (0/1) from controller
     }
-    If D0-D8 are present, backend control state (is_on) is updated to match the controller.
+    Controller-reported D0-D8 are the source of truth for is_on so all users see the same
+    relay state. For a short window after a dashboard toggle we skip overwriting is_on
+    from the request (so the toggle is not immediately reverted before the controller
+    applies it and reports back).
     """
     try:
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
-        # Sync backend control state from controller-reported digital pin states
+        now = datetime.now()
+        # Sync backend state from controller so all dashboard instances see the same relay state
         for appliance_id, appliance_info in APPLIANCES.items():
             output_pin = appliance_info['output_pin']
-            if output_pin in data:
-                val = data[output_pin]
-                if isinstance(val, bool):
-                    appliance_data[appliance_id]['is_on'] = val
-                else:
-                    appliance_data[appliance_id]['is_on'] = (int(val) != 0)
+            if output_pin not in data:
+                continue
+            skip_until = appliance_data[appliance_id].get('sync_skip_until')
+            if skip_until is not None and now < skip_until:
+                continue  # Recently toggled from UI; don't overwrite until controller has applied
+            val = data[output_pin]
+            appliance_data[appliance_id]['is_on'] = bool(val) if isinstance(val, bool) else (int(val) != 0)
         
         result = {}
         
@@ -259,7 +266,8 @@ def reset_appliance_data(appliance_id):
         'total_carbon': 0,
         'is_on': False,
         'last_timestamp': None,
-        'is_configured': False
+        'is_configured': False,
+        'sync_skip_until': None
     }
     
     return jsonify({'status': 'success', 'message': f'Data reset for {appliance_id}'}), 200
@@ -267,11 +275,12 @@ def reset_appliance_data(appliance_id):
 
 @app.route('/api/appliance/<appliance_id>/toggle', methods=['POST'])
 def toggle_appliance(appliance_id):
-    """Toggle appliance on/off state."""
+    """Toggle appliance on/off state. Skip syncing from controller for 2s so this toggle is not overwritten."""
     if appliance_id not in APPLIANCES:
         return jsonify({'error': 'Appliance not found'}), 404
     
     appliance_data[appliance_id]['is_on'] = not appliance_data[appliance_id]['is_on']
+    appliance_data[appliance_id]['sync_skip_until'] = datetime.now() + timedelta(seconds=2)
     
     return jsonify({
         'status': 'success',
