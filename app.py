@@ -11,7 +11,8 @@ CONFIG = {
     'ADC_CENTER': 2047,  # ADC center point (0 current)
     'ADC_REFERENCE_VOLTAGE': 3.3,  # ADC reference voltage in volts (ESP32)
     'CURRENT_SENSOR_RESOLUTION': 100,  # 100mV per 1A
-    'CARBON_EMISSION_FACTOR': 0.82  # kg CO2 per kWh (adjust based on your region)
+    'CARBON_EMISSION_FACTOR': 0.82,  # kg CO2 per kWh (adjust based on your region)
+    'MAX_READINGS_PER_APPLIANCE': 50,  # Last n readings kept for graph; aggregates use counters
 }
 
 # Appliance definitions
@@ -211,10 +212,10 @@ def process_data():
                     'carbon': round(carbon_kg, 6)
                 }
                 
-                # Keep only last 100 readings for memory efficiency
-                if len(appliance_data[appliance_id]['readings']) >= 100:
+                # Keep only last n readings for graph; aggregates use total_energy / total_carbon
+                max_readings = CONFIG['MAX_READINGS_PER_APPLIANCE']
+                if len(appliance_data[appliance_id]['readings']) >= max_readings:
                     appliance_data[appliance_id]['readings'].pop(0)
-                
                 appliance_data[appliance_id]['readings'].append(reading)
                 # Update last timestamp for next request
                 appliance_data[appliance_id]['last_timestamp'] = current_timestamp
@@ -236,19 +237,19 @@ def process_data():
 
 @app.route('/api/appliance/<appliance_id>/data')
 def get_appliance_data(appliance_id):
-    """Get real-time data for a specific appliance."""
+    """Get real-time data for a specific appliance. Returns last n readings for graph; aggregates are counters."""
     if appliance_id not in APPLIANCES:
         return jsonify({'error': 'Appliance not found'}), 404
     
     data = appliance_data[appliance_id]
-    
-    # Get current reading if available
-    current_reading = data['readings'][-1] if data['readings'] else None
+    # Readings list is already capped at MAX_READINGS_PER_APPLIANCE; return as-is for graph
+    readings = data['readings']
+    current_reading = readings[-1] if readings else None
     
     return jsonify({
         'appliance_id': appliance_id,
         'current_reading': current_reading,
-        'readings': data['readings'],
+        'readings': readings,
         'total_energy': round(data['total_energy'], 6),
         'total_carbon': round(data['total_carbon'], 6)
     }), 200
