@@ -27,7 +27,11 @@
                             <h3 class="appliance-name">{{ appliance.name }}</h3>
                             <p class="appliance-status" id="status-{{ appliance_id }}">Click to view details</p>
                             <button class="btn-toggle-circular" onclick="toggleAppliance('{{ appliance_id }}', event)" data-appliance-id="{{ appliance_id }}" title="Toggle appliance" id="btn-{{ appliance_id }}">
-                                <span class="toggle-icon" id="toggle-{{ appliance_id }}">⏻</span>
+                                <span class="toggle-icon" id="toggle-{{ appliance_id }}" aria-hidden="true">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="22" height="22" aria-label="Power">
+                                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z M12 12V4"/>
+                                    </svg>
+                                </span>
                             </button>
                         </a>
                     </div>

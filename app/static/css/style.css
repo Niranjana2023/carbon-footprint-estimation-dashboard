@@ -178,6 +178,8 @@ header a:hover {
     right: 1rem;
     width: 44px;
     height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     border-radius: 50%;
     border: 2px solid var(--border-color);
     background: white;
@@ -190,6 +192,21 @@ header a:hover {
     font-size: 1.2rem;
     padding: 0;
     z-index: 10;
+}
+
+.btn-toggle-circular .toggle-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+}
+
+.btn-toggle-circular .toggle-icon svg {
+    display: block;
+    width: 22px;
+    height: 22px;
+    fill: currentColor;
+    pointer-events: none;
 }
 
 .btn-toggle-circular:hover {
