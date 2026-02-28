@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ appliance.name }} - Carbon Footprint Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='90'>♻️</text></svg>" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+</head>
+<body>
+    <header>
+        <a href="/">
+            <span>♻️</span>
+            Carbon Footprint Dashboard
+        </a>
+    </header>
+
+    <div class="container">
+        <a href="/" class="back-link">← Back to Dashboard</a>
+
+        <div class="detail-header">
+            <h2>
+                <div class="icon">{{ appliance.icon }}</div>
+                {{ appliance.name }}
+            </h2>
+            <div class="controls">
+                <button class="btn-primary" id="refreshBtn">🔄 Refresh Data</button>
+                <button class="btn-danger" id="resetBtn">🔄 Reset</button>
+            </div>
+        </div>
+
+        <!-- Real-time Metrics -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Voltage</div>
+                <div class="metric-value" id="voltageValue">-</div>
+                <span class="metric-unit">V</span>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Current</div>
+                <div class="metric-value" id="currentValue">-</div>
+                <span class="metric-unit">A</span>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Power</div>
+                <div class="metric-value" id="powerValue">-</div>
+                <span class="metric-unit">W</span>
+            </div>
+
+            <div class="metric-card carbon">
+                <div class="metric-label">Carbon Footprint</div>
+                <div class="metric-value" id="carbonValue">-</div>
+                <span class="metric-unit">kg CO₂</span>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Total Energy</div>
+                <div class="metric-value" id="energyValue">-</div>
+                <span class="metric-unit">kWh</span>
+            </div>
+
+            <div class="metric-card carbon">
+                <div class="metric-label">Total Carbon</div>
+                <div class="metric-value" id="totalCarbonValue">-</div>
+                <span class="metric-unit">kg CO₂</span>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-section">
+            <h3>📊 Real-Time Monitoring</h3>
+            <div class="chart-grid">
+                <div>
+                    <div class="chart-title">Voltage (V)</div>
+                    <div class="chart-container">
+                        <canvas id="voltageChart"></canvas>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="chart-title">Current (A)</div>
+                    <div class="chart-container">
+                        <canvas id="currentChart"></canvas>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="chart-title">Power (W)</div>
+                    <div class="chart-container">
+                        <canvas id="powerChart"></canvas>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="chart-title">Carbon Footprint (kg CO₂)</div>
+                    <div class="chart-container">
+                        <canvas id="carbonChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const APPLIANCE_ID = "{{ appliance.id }}";
+        const APPLIANCE_NAME = "{{ appliance.name }}";
+        const APPLIANCE_COLOR = "{{ appliance.color }}";
+        const DATA_FETCH_INTERVAL = 2000; // 2 seconds
+        const CHART_CONFIG = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        font: { size: 11 }
+                    },
+                    title: {
+                        display: true,
+                        text: ''
+                    }
+                },
+                x: {
+                    ticks: {
+                        font: { size: 11 }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    }
+                }
+            }
+        };
+
+        // Chart instances
+        let charts = {
+            voltage: null,
+            current: null,
+            power: null,
+            carbon: null
+        };
+
+        // Initialize charts
+        function initializeCharts() {
+            const chartColor = APPLIANCE_COLOR || '#2E86AB';
+
+            // Voltage Chart
+            const voltageCtx = document.getElementById('voltageChart').getContext('2d');
+            const voltageConfig = JSON.parse(JSON.stringify(CHART_CONFIG));
+            voltageConfig.scales.y.title.text = 'Voltage (V)';
+            charts.voltage = new Chart(voltageCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Voltage',
+                        data: [],
+                        borderColor: chartColor,
+                        backgroundColor: chartColor + '20',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: chartColor
+                    }]
+                },
+                options: voltageConfig
+            });
+
+            // Current Chart
+            const currentCtx = document.getElementById('currentChart').getContext('2d');
+            const currentConfig = JSON.parse(JSON.stringify(CHART_CONFIG));
+            currentConfig.scales.y.title.text = 'Current (A)';
+            charts.current = new Chart(currentCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Current',
+                        data: [],
+                        borderColor: chartColor,
+                        backgroundColor: chartColor + '20',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: chartColor
+                    }]
+                },
+                options: currentConfig
+            });
+
+            // Power Chart
+            const powerCtx = document.getElementById('powerChart').getContext('2d');
+            const powerConfig = JSON.parse(JSON.stringify(CHART_CONFIG));
+            powerConfig.scales.y.title.text = 'Power (W)';
+            charts.power = new Chart(powerCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Power',
+                        data: [],
+                        borderColor: chartColor,
+                        backgroundColor: chartColor + '20',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: chartColor
+                    }]
+                },
+                options: powerConfig
+            });
+
+            // Carbon Chart
+            const carbonCtx = document.getElementById('carbonChart').getContext('2d');
+            const carbonConfig = JSON.parse(JSON.stringify(CHART_CONFIG));
+            carbonConfig.scales.y.title.text = 'Carbon Footprint (kg CO₂)';
+            charts.carbon = new Chart(carbonCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Carbon',
+                        data: [],
+                        borderColor: '#06A77D',
+                        backgroundColor: '#06A77D20',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#06A77D'
+                    }]
+                },
+                options: carbonConfig
+            });
+        }
+
+        // Format time for display (HH:MM:SS)
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit',
+                hour12: false 
+            });
+        }
+
+        // Update metrics display
+        function updateMetrics(data) {
+            if (data.current_reading) {
+                const reading = data.current_reading;
+                
+                document.getElementById('voltageValue').textContent = reading.voltage.toFixed(2);
+                document.getElementById('currentValue').textContent = reading.current.toFixed(3);
+                document.getElementById('powerValue').textContent = reading.power.toFixed(2);
+                document.getElementById('carbonValue').textContent = (reading.carbon * 1000).toFixed(4); // Convert to mg for display
+            }
+
+            document.getElementById('energyValue').textContent = data.total_energy.toFixed(4);
+            document.getElementById('totalCarbonValue').textContent = data.total_carbon.toFixed(4);
+        }
+
+        // Update charts with new data
+        function updateCharts(readings) {
+            if (!readings || readings.length === 0) {
+                return;
+            }
+
+            // Keep only last 50 data points for clarity
+            const recentReadings = readings.slice(-50);
+            const timeLabels = recentReadings.map(r => formatTime(r.timestamp));
+            
+            // Update Voltage Chart
+            charts.voltage.data.labels = timeLabels;
+            charts.voltage.data.datasets[0].data = recentReadings.map(r => r.voltage);
+            charts.voltage.update('none');
+
+            // Update Current Chart
+            charts.current.data.labels = timeLabels;
+            charts.current.data.datasets[0].data = recentReadings.map(r => r.current);
+            charts.current.update('none');
+
+            // Update Power Chart
+            charts.power.data.labels = timeLabels;
+            charts.power.data.datasets[0].data = recentReadings.map(r => r.power);
+            charts.power.update('none');
+
+            // Update Carbon Chart
+            charts.carbon.data.labels = timeLabels;
+            charts.carbon.data.datasets[0].data = recentReadings.map(r => r.carbon * 1000); // Convert to mg
+            charts.carbon.update('none');
+        }
+
+        // Fetch data from server
+        async function fetchData() {
+            try {
+                const response = await fetch(`/api/appliance/${APPLIANCE_ID}/data`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                updateMetrics(data);
+                updateCharts(data.readings);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        // Reset appliance data
+        async function resetData() {
+            if (confirm('Are you sure you want to reset all data for this appliance?')) {
+                try {
+                    const response = await fetch(`/api/appliance/${APPLIANCE_ID}/reset`, {
+                        method: 'POST'
+                    });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    // Reset charts and metrics
+                    Object.values(charts).forEach(chart => {
+                        chart.data.labels = [];
+                        chart.data.datasets[0].data = [];
+                        chart.update();
+                    });
+                    document.getElementById('voltageValue').textContent = '-';
+                    document.getElementById('currentValue').textContent = '-';
+                    document.getElementById('powerValue').textContent = '-';
+                    document.getElementById('carbonValue').textContent = '-';
+                    document.getElementById('energyValue').textContent = '-';
+                    document.getElementById('totalCarbonValue').textContent = '-';
+                } catch (error) {
+                    console.error('Error resetting data:', error);
+                    alert('Failed to reset data');
+                }
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            fetchData();
+            
+            // Set up automatic data refresh
+            setInterval(fetchData, DATA_FETCH_INTERVAL);
+
+            // Button event listeners
+            document.getElementById('refreshBtn').addEventListener('click', fetchData);
+            document.getElementById('resetBtn').addEventListener('click', resetData);
+        });
+    </script>
+</body>
+</html>
