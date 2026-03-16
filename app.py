@@ -15,72 +15,29 @@ CONFIG = {
     'MAX_READINGS_PER_APPLIANCE': 50,  # Last n readings kept for graph; aggregates use counters
 }
 
-# Appliance definitions
+# Appliance definitions (3 sockets)
 APPLIANCES = {
-    'lights': {
-        'name': 'Lights',
-        'icon': '💡',
+    'socket_1': {
+        'name': 'Socket 1',
+        'icon': '🔌',
         'adc_pin': 'A0',
         'output_pin': 'D0',
         'color': '#FFD700'
     },
-    'fan': {
-        'name': 'Fan',
-        'icon': '🌀',
+    'socket_2': {
+        'name': 'Socket 2',
+        'icon': '🔌',
         'adc_pin': 'A1',
         'output_pin': 'D1',
         'color': '#87CEEB'
     },
-    'washing_machine': {
-        'name': 'Washing Machine',
-        'icon': '🧺',
+    'socket_3': {
+        'name': 'Socket 3',
+        'icon': '🔌',
         'adc_pin': 'A2',
         'output_pin': 'D2',
         'color': '#FF6B6B'
     },
-    'refrigerator': {
-        'name': 'Refrigerator',
-        'icon': '🧊',
-        'adc_pin': 'A3',
-        'output_pin': 'D3',
-        'color': '#4ECDC4'
-    },
-    # --- 4 devices only; below commented out ---
-    # 'microwave': {
-    #     'name': 'Microwave',
-    #     'icon': '🍞',
-    #     'adc_pin': 'A4',
-    #     'output_pin': 'D4',
-    #     'color': '#95E1D3'
-    # },
-    # 'air_conditioner': {
-    #     'name': 'Air Conditioner',
-    #     'icon': '❄️',
-    #     'adc_pin': 'A5',
-    #     'output_pin': 'D5',
-    #     'color': '#7FE5E0'
-    # },
-    # 'dishwasher': {
-    #     'name': 'Dishwasher',
-    #     'icon': '🍽️',
-    #     'adc_pin': 'A6',
-    #     'output_pin': 'D6',
-    #     'color': '#FFB6C1'
-    # },
-    # 'water_heater': {
-    #     'name': 'Water Heater',
-    #     'icon': '🚿',
-    #     'adc_pin': 'A7',
-    #     'output_pin': 'D7',
-    #     'color': '#FF8C69'
-    # },
-    # 'desktop_pc': {
-    #     'name': 'Desktop PC',
-    #     'icon': '🖥️',
-    #     'adc_pin': 'A8',
-    #     'output_pin': 'D8',
-    #     'color': '#4A90E2'
-    # }
 }
 
 # In-memory storage for real-time data and state
