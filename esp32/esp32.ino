@@ -18,8 +18,8 @@
 #include <WiFiClientSecure.h>
 
 // ----- WiFi (edit to match your network) -----
-#define WIFI_SSID     "TECNO"
-#define WIFI_PASSWORD "anju@2005"
+#define WIFI_SSID     ""
+#define WIFI_PASSWORD ""
 
 // ----- API -----
 #define API_BASE_URL "https://39fe-2403-a080-1c-384c-b536-6fa3-c6ef-968c.ngrok-free.app"
@@ -41,7 +41,6 @@ const char* RELAY_KEYS[] = { "D0", "D1", "D2" };
 #define ADC_WIDTH     ADC_WIDTH_12Bit
 #define ADC_SAMPLES   4
 
-WiFiClientSecure client;
 unsigned long lastRequestMs = 0;
 bool wifiConnected = false;
 
@@ -64,8 +63,6 @@ void setup() {
   }
 
   connectWiFi();
-  // Accept ngrok HTTPS certificate (no CA pin for dynamic ngrok URLs)
-  client.setInsecure();
 }
 
 void loop() {
@@ -130,6 +127,11 @@ void sendProcessDataAndUpdateRelays() {
   String body;
   serializeJson(doc, body);
 
+  // Use a fresh WiFiClientSecure per request to avoid ESP32 TLS/reuse bugs
+  // (second request often fails with a single reused client)
+  WiFiClientSecure client;
+  client.setInsecure();
+
   HTTPClient http;
   String url = String(API_BASE_URL) + PROCESS_DATA_PATH;
   http.begin(client, url);
@@ -153,7 +155,7 @@ void sendProcessDataAndUpdateRelays() {
   http.end();
 
   // Parse response and update relays: control_states["D0"] = true/false, ...
-  StaticJsonDocument<512> resDoc;
+  StaticJsonDocument<1024> resDoc;
   DeserializationError err = deserializeJson(resDoc, response);
   if (err) {
     Serial.print("[API] JSON parse error: ");
@@ -168,8 +170,10 @@ void sendProcessDataAndUpdateRelays() {
   }
 
   // NO relay: LOW = on (close contact), HIGH = off (open)
+  // Re-assert OUTPUT and write so pins stay driven (avoids 2.5V float from high-Z)
   for (int i = 0; i < NUM_RELAYS; i++) {
     bool on = control[RELAY_KEYS[i]] | false;
+    pinMode(RELAY_PINS[i], OUTPUT);
     digitalWrite(RELAY_PINS[i], on ? LOW : HIGH);
   }
 }
