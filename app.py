@@ -1,6 +1,13 @@
 from flask import Flask, render_template, request, jsonify
 from datetime import datetime, timedelta
 import json
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+logger = logging.getLogger('sensor')
 
 app = Flask(__name__, template_folder='app/templates', static_folder='app/static')
 
@@ -13,13 +20,9 @@ CONFIG = {
     'CURRENT_SENSOR_RESOLUTION': 100,  # mV per Amp (ZMCT103C module sensitivity)
     'CARBON_EMISSION_FACTOR': 0.82,  # kg CO2 per kWh (adjust based on your region)
     'MAX_READINGS_PER_APPLIANCE': 50,  # Last n readings kept for graph; aggregates use counters
+    'CALIBRATION_SAMPLES': 50,  # No-load readings collected to auto-detect ADC center
+    'ADC_NOISE_THRESHOLD': 15,  # ADC counts within this range of center are treated as 0A
 }
-
-# ZMCT103C outputs Vcc/2 (2.5V) at zero current. Map that voltage to the
-# ESP32's 12-bit ADC scale so the center point correctly represents 0A.
-CONFIG['ADC_CENTER'] = int(
-    (CONFIG['SENSOR_VCC'] / 2 / CONFIG['ADC_REFERENCE_VOLTAGE']) * CONFIG['ADC_MAX']
-)
 
 # Appliance definitions (3 sockets)
 APPLIANCES = {
@@ -46,6 +49,18 @@ APPLIANCES = {
     },
 }
 
+# Per-appliance ADC calibration state.
+# On startup, the first CALIBRATION_SAMPLES readings (assumed no-load) are averaged
+# to find the true zero-current ADC center for each channel.  This accounts for the
+# ZMCT103C module's actual DC offset, potentiometer setting, and component tolerances.
+adc_calibration = {
+    appliance_id: {
+        'center': None,
+        'samples': [],
+    }
+    for appliance_id in APPLIANCES
+}
+
 # In-memory storage for real-time data and state
 # sync_skip_until: after a dashboard toggle, we don't overwrite is_on from controller until this time (so all clients see the same relay state)
 appliance_data = {
@@ -60,6 +75,16 @@ appliance_data = {
     }
     for appliance_id in APPLIANCES
 }
+
+
+def _calibration_status(appliance_id):
+    """Return calibration progress for a single appliance."""
+    cal = adc_calibration[appliance_id]
+    if cal['center'] is not None:
+        return {'is_calibrating': False, 'progress': 0, 'total': 0, 'center': cal['center']}
+    progress = len(cal['samples'])
+    total = CONFIG['CALIBRATION_SAMPLES']
+    return {'is_calibrating': True, 'progress': progress, 'total': total, 'center': None}
 
 
 @app.route('/')
@@ -124,25 +149,56 @@ def process_data():
                 adc_value = int(data[adc_pin])
                 
                 # Update device configuration status on every request
-                # Device is configured if ADC value is not zero
                 appliance_data[appliance_id]['is_configured'] = (adc_value != 0)
                 
-                # ADC center point (~3102) represents 0 current, derived from
-                # ZMCT103C Vcc/2 offset (2.5V) mapped onto the ESP32's 3.3V ADC range
-                adc_offset = adc_value - CONFIG['ADC_CENTER']
-                
-                # Convert ADC offset to millivolts using the ESP32 ADC step size
-                adc_step_mv = (CONFIG['ADC_REFERENCE_VOLTAGE'] * 1000) / CONFIG['ADC_MAX']
-                sensor_output_mv = adc_offset * adc_step_mv
-                
-                # Calculate current magnitude from sensor output
-                current_a = max(0.0, abs(sensor_output_mv) / CONFIG['CURRENT_SENSOR_RESOLUTION'])
-                
-                # Use constant voltage
-                voltage = CONFIG['VOLTAGE_CONSTANT']
-                
-                # Calculate power (floored at 0 to discard noise-induced negatives)
-                power_w = max(0.0, voltage * current_a)
+                cal = adc_calibration[appliance_id]
+
+                # --- Auto-calibration: collect no-load samples to find true ADC center ---
+                if cal['center'] is None:
+                    cal['samples'].append(adc_value)
+                    needed = CONFIG['CALIBRATION_SAMPLES']
+                    if len(cal['samples']) < needed:
+                        logger.info(
+                            "[CALIBRATING] %s (%s): sample %d/%d  raw_adc=%d",
+                            appliance_id, adc_pin, len(cal['samples']), needed, adc_value
+                        )
+                        # While calibrating, report zero current/power
+                        current_a = 0.0
+                        power_w = 0.0
+                        voltage = CONFIG['VOLTAGE_CONSTANT']
+                    else:
+                        cal['center'] = int(round(
+                            sum(cal['samples']) / len(cal['samples'])
+                        ))
+                        logger.info(
+                            "[CALIBRATED] %s (%s): ADC center = %d  (from %d samples, "
+                            "min=%d, max=%d)",
+                            appliance_id, adc_pin, cal['center'], needed,
+                            min(cal['samples']), max(cal['samples'])
+                        )
+                        # Fall through to normal processing below
+
+                if cal['center'] is not None:
+                    adc_center = cal['center']
+                    adc_offset = adc_value - adc_center
+
+                    # Noise dead zone: treat small offsets around center as 0A
+                    if abs(adc_offset) <= CONFIG['ADC_NOISE_THRESHOLD']:
+                        adc_offset = 0
+
+                    adc_step_mv = (CONFIG['ADC_REFERENCE_VOLTAGE'] * 1000) / CONFIG['ADC_MAX']
+                    sensor_output_mv = adc_offset * adc_step_mv
+
+                    current_a = max(0.0, abs(sensor_output_mv) / CONFIG['CURRENT_SENSOR_RESOLUTION'])
+                    voltage = CONFIG['VOLTAGE_CONSTANT']
+                    power_w = max(0.0, voltage * current_a)
+
+                    logger.debug(
+                        "[SENSOR] %s (%s): raw_adc=%d  center=%d  offset=%d  "
+                        "sensor_mv=%.1f  current=%.3fA  power=%.1fW",
+                        appliance_id, adc_pin, adc_value, adc_center, adc_offset,
+                        sensor_output_mv, current_a, power_w
+                    )
                 
                 # Calculate time elapsed since last reading (in seconds)
                 current_timestamp = datetime.now()
@@ -215,13 +271,14 @@ def get_appliance_data(appliance_id):
         'current_reading': current_reading,
         'readings': readings,
         'total_energy': round(data['total_energy'], 6),
-        'total_carbon': round(data['total_carbon'], 6)
+        'total_carbon': round(data['total_carbon'], 6),
+        'calibration': _calibration_status(appliance_id)
     }), 200
 
 
 @app.route('/api/appliance/<appliance_id>/reset', methods=['POST'])
 def reset_appliance_data(appliance_id):
-    """Reset data for a specific appliance."""
+    """Reset data and calibration for a specific appliance."""
     if appliance_id not in APPLIANCES:
         return jsonify({'error': 'Appliance not found'}), 404
     
@@ -234,8 +291,44 @@ def reset_appliance_data(appliance_id):
         'is_configured': False,
         'sync_skip_until': None
     }
+    adc_calibration[appliance_id] = {'center': None, 'samples': []}
+    logger.info("[RESET] %s: data and calibration cleared — will re-calibrate from next %d samples",
+                appliance_id, CONFIG['CALIBRATION_SAMPLES'])
     
     return jsonify({'status': 'success', 'message': f'Data reset for {appliance_id}'}), 200
+
+
+@app.route('/api/calibrate', methods=['POST'])
+def calibrate_sensors():
+    """
+    Reset ADC calibration so the system re-learns the zero-current center from the
+    next CALIBRATION_SAMPLES readings.  Call this with NO LOAD connected.
+    Optional JSON body: {"appliance_id": "socket_1"} to calibrate a single channel.
+    """
+    body = request.get_json(silent=True) or {}
+    target = body.get('appliance_id')
+
+    if target and target not in APPLIANCES:
+        return jsonify({'error': f'Unknown appliance: {target}'}), 404
+
+    targets = [target] if target else list(APPLIANCES.keys())
+    for aid in targets:
+        adc_calibration[aid] = {'center': None, 'samples': []}
+        appliance_data[aid]['readings'] = []
+        appliance_data[aid]['total_energy'] = 0
+        appliance_data[aid]['total_carbon'] = 0
+        appliance_data[aid]['last_timestamp'] = None
+
+    logger.info("[CALIBRATE] Re-calibrating %s — collecting %d no-load samples per channel",
+                ', '.join(targets), CONFIG['CALIBRATION_SAMPLES'])
+
+    return jsonify({
+        'status': 'success',
+        'message': f'Calibration reset for {", ".join(targets)}. '
+                   f'Ensure NO LOAD is connected — the next {CONFIG["CALIBRATION_SAMPLES"]} '
+                   f'readings will be used to determine the zero-current center.',
+        'appliances': targets
+    }), 200
 
 
 @app.route('/api/appliance/<appliance_id>/toggle', methods=['POST'])
@@ -272,7 +365,8 @@ def get_all_states():
     """Get the state of all appliances mapped to their output pins."""
     states = {APPLIANCES[appliance_id]['output_pin']: appliance_data[appliance_id]['is_on'] for appliance_id in APPLIANCES}
     configured = {appliance_id: appliance_data[appliance_id]['is_configured'] for appliance_id in APPLIANCES}
-    return jsonify({'states': states, 'configured': configured}), 200
+    calibration = {appliance_id: _calibration_status(appliance_id) for appliance_id in APPLIANCES}
+    return jsonify({'states': states, 'configured': configured, 'calibration': calibration}), 200
 
 
 @app.route('/api/aggregates', methods=['GET'])

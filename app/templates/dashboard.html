@@ -23,6 +23,11 @@
                     {% for appliance_id, appliance in appliances.items() %}
                     <div class="appliance-card-wrapper">
                         <a href="{{ url_for('appliance_detail', appliance_id=appliance_id) }}" class="appliance-card" id="card-{{ appliance_id }}" onclick="handleCardClick(event, '{{ appliance_id }}')">
+                            <div class="calibration-overlay" id="cal-{{ appliance_id }}" style="display:none">
+                                <div class="calibration-spinner"></div>
+                                <span class="calibration-label">Calibrating sensor...</span>
+                                <span class="calibration-progress" id="cal-progress-{{ appliance_id }}"></span>
+                            </div>
                             <div class="appliance-icon">{{ appliance.icon }}</div>
                             <h3 class="appliance-name">{{ appliance.name }}</h3>
                             <p class="appliance-status" id="status-{{ appliance_id }}">Click to view details</p>
@@ -127,6 +132,26 @@
             }
         }
         
+        // Update calibration overlay on a card
+        function updateCalibrationStatus(applianceId, calInfo) {
+            const overlay = document.getElementById(`cal-${applianceId}`);
+            const progress = document.getElementById(`cal-progress-${applianceId}`);
+            const card = document.getElementById(`card-${applianceId}`);
+            const button = document.getElementById(`btn-${applianceId}`);
+
+            if (!calInfo || !calInfo.is_calibrating) {
+                overlay.style.display = 'none';
+                card.classList.remove('calibrating');
+                return;
+            }
+            overlay.style.display = 'flex';
+            card.classList.add('calibrating');
+            button.disabled = true;
+            button.style.pointerEvents = 'none';
+            const pct = Math.round((calInfo.progress / calInfo.total) * 100);
+            progress.textContent = `${calInfo.progress} / ${calInfo.total}  (${pct}%)`;
+        }
+
         // Update device configuration status
         function updateDeviceStatus(applianceId, isConfigured) {
             const card = document.getElementById(`card-${applianceId}`);
@@ -172,6 +197,13 @@
                 Object.entries(data.configured).forEach(([appId, isConfigured]) => {
                     updateDeviceStatus(appId, isConfigured);
                 });
+                
+                // Update calibration status
+                if (data.calibration) {
+                    Object.entries(data.calibration).forEach(([appId, calInfo]) => {
+                        updateCalibrationStatus(appId, calInfo);
+                    });
+                }
             } catch (error) {
                 console.error('Error loading states:', error);
             }

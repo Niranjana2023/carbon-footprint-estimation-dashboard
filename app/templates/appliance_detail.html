@@ -30,6 +30,18 @@
             </div>
         </div>
 
+        <!-- Calibration Banner (hidden until calibrating) -->
+        <div class="calibration-banner" id="calibrationBanner" style="display:none">
+            <div class="calibration-spinner"></div>
+            <div class="calibration-banner-text">
+                <strong>Calibrating sensor...</strong>
+                <span id="calBannerDetail">Collecting no-load samples to determine zero-current baseline</span>
+            </div>
+            <div class="calibration-bar-wrapper">
+                <div class="calibration-bar" id="calBar" style="width:0%"></div>
+            </div>
+        </div>
+
         <!-- Real-time Metrics -->
         <div class="metrics-grid">
             <div class="metric-card">
@@ -307,6 +319,20 @@
             charts.carbon.update('none');
         }
 
+        // Update calibration banner visibility
+        function updateCalibrationBanner(cal) {
+            const banner = document.getElementById('calibrationBanner');
+            if (!cal || !cal.is_calibrating) {
+                banner.style.display = 'none';
+                return;
+            }
+            banner.style.display = 'flex';
+            const pct = Math.round((cal.progress / cal.total) * 100);
+            document.getElementById('calBannerDetail').textContent =
+                `Sample ${cal.progress} / ${cal.total}  (${pct}%)`;
+            document.getElementById('calBar').style.width = `${pct}%`;
+        }
+
         // Fetch data from server
         async function fetchData() {
             try {
@@ -315,6 +341,7 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
+                updateCalibrationBanner(data.calibration);
                 updateMetrics(data);
                 updateCharts(data.readings);
             } catch (error) {

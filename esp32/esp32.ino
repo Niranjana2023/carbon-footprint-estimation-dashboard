@@ -115,6 +115,7 @@ void connectWiFi() {
 void sendProcessDataAndUpdateRelays() {
   // Build JSON body: { "A0": value, ..., "D0": 0/1, ... } (ADC + current digital output states)
   StaticJsonDocument<768> doc;
+  Serial.print("[ADC DEBUG]");
   for (int i = 0; i < NUM_ADC; i++) {
     long sum = 0;
     for (int s = 0; s < ADC_SAMPLES; s++) {
@@ -123,7 +124,9 @@ void sendProcessDataAndUpdateRelays() {
     }
     int avg = (int)(sum / ADC_SAMPLES);
     doc[ADC_KEYS[i]] = avg;
+    Serial.printf("  %s=%d", ADC_KEYS[i], avg);
   }
+  Serial.println();
   // Report state for NO relay: LOW = on (1), HIGH = off (0)
   for (int i = 0; i < NUM_RELAYS; i++) {
     doc[RELAY_KEYS[i]] = digitalRead(RELAY_PINS[i]) == LOW ? 1 : 0;
