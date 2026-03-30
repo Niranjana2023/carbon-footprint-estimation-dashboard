@@ -328,8 +328,7 @@
             }
             banner.style.display = 'flex';
             const pct = Math.round((cal.progress / cal.total) * 100);
-            document.getElementById('calBannerDetail').textContent =
-                `Sample ${cal.progress} / ${cal.total}  (${pct}%)`;
+            document.getElementById('calBannerDetail').textContent = `${pct}%`;
             document.getElementById('calBar').style.width = `${pct}%`;
         }
 

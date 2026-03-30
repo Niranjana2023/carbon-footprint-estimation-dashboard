@@ -149,7 +149,7 @@
             button.disabled = true;
             button.style.pointerEvents = 'none';
             const pct = Math.round((calInfo.progress / calInfo.total) * 100);
-            progress.textContent = `${calInfo.progress} / ${calInfo.total}  (${pct}%)`;
+            progress.textContent = `${pct}%`;
         }
 
         // Update device configuration status

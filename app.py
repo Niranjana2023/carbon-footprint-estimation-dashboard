@@ -20,8 +20,9 @@ CONFIG = {
     'CURRENT_SENSOR_RESOLUTION': 100,  # mV per Amp (ZMCT103C module sensitivity)
     'CARBON_EMISSION_FACTOR': 0.82,  # kg CO2 per kWh (adjust based on your region)
     'MAX_READINGS_PER_APPLIANCE': 50,  # Last n readings kept for graph; aggregates use counters
-    'CALIBRATION_SAMPLES': 50,  # No-load readings collected to auto-detect ADC center
+    'CALIBRATION_SAMPLES': 30,  # No-load readings collected to auto-detect ADC center
     'ADC_NOISE_THRESHOLD': 15,  # ADC counts within this range of center are treated as 0A
+    'CONTROLLER_TIMEOUT_S': 5,  # Seconds of silence before treating controller as disconnected
 }
 
 # Appliance definitions (3 sockets)
@@ -151,6 +152,22 @@ def process_data():
                 # Update device configuration status on every request
                 appliance_data[appliance_id]['is_configured'] = (adc_value != 0)
                 
+                # If the controller was silent for longer than CONTROLLER_TIMEOUT_S,
+                # treat it as a power-cycle and re-calibrate from fresh samples.
+                last_ts = appliance_data[appliance_id]['last_timestamp']
+                if last_ts is not None:
+                    gap = (now - last_ts).total_seconds()
+                    if gap > CONFIG['CONTROLLER_TIMEOUT_S']:
+                        adc_calibration[appliance_id] = {'center': None, 'samples': []}
+                        appliance_data[appliance_id]['readings'] = []
+                        appliance_data[appliance_id]['total_energy'] = 0
+                        appliance_data[appliance_id]['total_carbon'] = 0
+                        appliance_data[appliance_id]['last_timestamp'] = None
+                        logger.info(
+                            "[TIMEOUT] %s (%s): no data for %.1fs — recalibrating",
+                            appliance_id, adc_pin, gap
+                        )
+
                 cal = adc_calibration[appliance_id]
 
                 # --- Auto-calibration: collect no-load samples to find true ADC center ---
