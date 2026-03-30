@@ -10,6 +10,11 @@
  * ESP32 30-pin board wiring:
  *   ADC:   A0-A2 -> GPIO 36 (VP), 39 (VN), 34
  *   Relay: D0-D2 -> GPIO 25, 26, 27
+ *
+ * ZMCT103C sensor mapping:
+ *   Sensor Vcc = 5V, max analog output = Vcc/2 = 2.5V (safe for 3.3V ESP32 pins).
+ *   Zero-current DC offset = 2.5V -> ADC ~3102 on a 0-3.3V / 12-bit scale.
+ *   Raw ADC values are sent to the server; voltage/current mapping happens there.
  */
 
 #include <WiFi.h>

@@ -8,12 +8,18 @@ app = Flask(__name__, template_folder='app/templates', static_folder='app/static
 CONFIG = {
     'VOLTAGE_CONSTANT': 230.0,  # Voltage in volts (constant, configurable)
     'ADC_MAX': 4095,  # 12-bit ADC
-    'ADC_CENTER': 2047,  # ADC center point (0 current)
-    'ADC_REFERENCE_VOLTAGE': 3.3,  # ADC reference voltage in volts (ESP32)
-    'CURRENT_SENSOR_RESOLUTION': 100,  # 100mV per 1A
+    'ADC_REFERENCE_VOLTAGE': 3.3,  # ESP32 ADC reference voltage in volts
+    'SENSOR_VCC': 5.0,  # ZMCT103C module supply voltage
+    'CURRENT_SENSOR_RESOLUTION': 100,  # mV per Amp (ZMCT103C module sensitivity)
     'CARBON_EMISSION_FACTOR': 0.82,  # kg CO2 per kWh (adjust based on your region)
     'MAX_READINGS_PER_APPLIANCE': 50,  # Last n readings kept for graph; aggregates use counters
 }
+
+# ZMCT103C outputs Vcc/2 (2.5V) at zero current. Map that voltage to the
+# ESP32's 12-bit ADC scale so the center point correctly represents 0A.
+CONFIG['ADC_CENTER'] = int(
+    (CONFIG['SENSOR_VCC'] / 2 / CONFIG['ADC_REFERENCE_VOLTAGE']) * CONFIG['ADC_MAX']
+)
 
 # Appliance definitions (3 sockets)
 APPLIANCES = {
@@ -121,22 +127,22 @@ def process_data():
                 # Device is configured if ADC value is not zero
                 appliance_data[appliance_id]['is_configured'] = (adc_value != 0)
                 
-                # Calculate current from ADC value
-                # ADC center point (2047) represents 0 current
+                # ADC center point (~3102) represents 0 current, derived from
+                # ZMCT103C Vcc/2 offset (2.5V) mapped onto the ESP32's 3.3V ADC range
                 adc_offset = adc_value - CONFIG['ADC_CENTER']
                 
-                # Convert ADC offset to voltage
+                # Convert ADC offset to millivolts using the ESP32 ADC step size
                 adc_step_mv = (CONFIG['ADC_REFERENCE_VOLTAGE'] * 1000) / CONFIG['ADC_MAX']
                 sensor_output_mv = adc_offset * adc_step_mv
                 
-                # Calculate current from sensor output (100mV per 1A)
-                current_a = sensor_output_mv / CONFIG['CURRENT_SENSOR_RESOLUTION']
+                # Calculate current magnitude from sensor output
+                current_a = max(0.0, abs(sensor_output_mv) / CONFIG['CURRENT_SENSOR_RESOLUTION'])
                 
                 # Use constant voltage
                 voltage = CONFIG['VOLTAGE_CONSTANT']
                 
-                # Calculate power
-                power_w = voltage * abs(current_a)  # Use absolute value for power
+                # Calculate power (floored at 0 to discard noise-induced negatives)
+                power_w = max(0.0, voltage * current_a)
                 
                 # Calculate time elapsed since last reading (in seconds)
                 current_timestamp = datetime.now()
