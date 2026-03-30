@@ -22,7 +22,7 @@ CONFIG = {
     'MAX_READINGS_PER_APPLIANCE': 50,  # Last n readings kept for graph; aggregates use counters
     'CALIBRATION_SAMPLES': 30,  # No-load readings collected to auto-detect ADC center
     'ADC_NOISE_THRESHOLD': 15,  # ADC counts within this range of center are treated as 0A
-    'CONTROLLER_TIMEOUT_S': 5,  # Seconds of silence before treating controller as disconnected
+    'CONTROLLER_TIMEOUT_S': 10,  # Seconds of silence before treating controller as offline
 }
 
 # Appliance definitions (3 sockets)
@@ -76,6 +76,14 @@ appliance_data = {
     }
     for appliance_id in APPLIANCES
 }
+
+
+def _is_online(appliance_id):
+    """True only when the controller is actively sending data for this channel."""
+    last_ts = appliance_data[appliance_id]['last_timestamp']
+    if last_ts is None:
+        return appliance_data[appliance_id]['is_configured']
+    return (datetime.now() - last_ts).total_seconds() <= CONFIG['CONTROLLER_TIMEOUT_S']
 
 
 def _calibration_status(appliance_id):
@@ -149,22 +157,19 @@ def process_data():
             if adc_pin in data:
                 adc_value = int(data[adc_pin])
                 
-                # Update device configuration status on every request
                 appliance_data[appliance_id]['is_configured'] = (adc_value != 0)
                 
-                # If the controller was silent for longer than CONTROLLER_TIMEOUT_S,
-                # treat it as a power-cycle and re-calibrate from fresh samples.
+                # If the controller was offline (gap > CONTROLLER_TIMEOUT_S) and data
+                # just arrived, trigger a fresh recalibration.  Only the calibration
+                # and timestamp are reset — readings / energy / carbon are preserved.
                 last_ts = appliance_data[appliance_id]['last_timestamp']
                 if last_ts is not None:
                     gap = (now - last_ts).total_seconds()
                     if gap > CONFIG['CONTROLLER_TIMEOUT_S']:
                         adc_calibration[appliance_id] = {'center': None, 'samples': []}
-                        appliance_data[appliance_id]['readings'] = []
-                        appliance_data[appliance_id]['total_energy'] = 0
-                        appliance_data[appliance_id]['total_carbon'] = 0
                         appliance_data[appliance_id]['last_timestamp'] = None
                         logger.info(
-                            "[TIMEOUT] %s (%s): no data for %.1fs — recalibrating",
+                            "[RECONNECT] %s (%s): controller back after %.1fs — recalibrating",
                             appliance_id, adc_pin, gap
                         )
 
@@ -373,7 +378,7 @@ def get_appliance_state(appliance_id):
     return jsonify({
         'appliance_id': appliance_id,
         'is_on': appliance_data[appliance_id]['is_on'],
-        'is_configured': appliance_data[appliance_id]['is_configured']
+        'is_configured': _is_online(appliance_id)
     }), 200
 
 
@@ -381,7 +386,7 @@ def get_appliance_state(appliance_id):
 def get_all_states():
     """Get the state of all appliances mapped to their output pins."""
     states = {APPLIANCES[appliance_id]['output_pin']: appliance_data[appliance_id]['is_on'] for appliance_id in APPLIANCES}
-    configured = {appliance_id: appliance_data[appliance_id]['is_configured'] for appliance_id in APPLIANCES}
+    configured = {appliance_id: _is_online(appliance_id) for appliance_id in APPLIANCES}
     calibration = {appliance_id: _calibration_status(appliance_id) for appliance_id in APPLIANCES}
     return jsonify({'states': states, 'configured': configured, 'calibration': calibration}), 200
 
